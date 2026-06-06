@@ -93,6 +93,8 @@ const exercisesList = document.getElementById('exercises-list');
 const statsCompleted = document.getElementById('stats-completed');
 const btnResetDay = document.getElementById('btn-reset-day');
 const btnAddExercise = document.getElementById('btn-add-exercise');
+const btnCompleteDay = document.getElementById('btn-complete-day');
+const btnUndoDay = document.getElementById('btn-undo-day');
 
 // Navigation DOM
 const navWorkout = document.getElementById('nav-workout');
@@ -375,6 +377,50 @@ function resetDayProgress() {
   }
 }
 
+// Complete the entire current day
+function completeCurrentDay() {
+  const dayData = routine[currentDay];
+  if (!dayData || dayData.exercises.length === 0) return;
+  
+  const dateStr = getDateOfDayOfCurrentWeek(currentDay);
+  if (!completedSets[dateStr]) {
+    completedSets[dateStr] = {};
+  }
+  
+  dayData.exercises.forEach(ex => {
+    for (let setNum = 1; setNum <= ex.sets; setNum++) {
+      const setKey = `${ex.name}-${setNum}`;
+      completedSets[dateStr][setKey] = true;
+    }
+  });
+  
+  localStorage.setItem('flexflow_completed_sets', JSON.stringify(completedSets));
+  loadDay(currentDay);
+}
+
+// Undo completing the current day
+function undoCompleteCurrentDay() {
+  const dayData = routine[currentDay];
+  if (!dayData || dayData.exercises.length === 0) return;
+  
+  const dateStr = getDateOfDayOfCurrentWeek(currentDay);
+  if (completedSets[dateStr]) {
+    dayData.exercises.forEach(ex => {
+      for (let setNum = 1; setNum <= ex.sets; setNum++) {
+        const setKey = `${ex.name}-${setNum}`;
+        delete completedSets[dateStr][setKey];
+      }
+    });
+    
+    if (Object.keys(completedSets[dateStr]).length === 0) {
+      delete completedSets[dateStr];
+    }
+    
+    localStorage.setItem('flexflow_completed_sets', JSON.stringify(completedSets));
+    loadDay(currentDay);
+  }
+}
+
 // Timer Logic
 function startTimer(duration) {
   stopTimer();
@@ -593,6 +639,8 @@ function saveRoutine() {
 function setupEventListeners() {
   btnResetDay.addEventListener('click', resetDayProgress);
   btnAddExercise.addEventListener('click', () => openModal(-1));
+  btnCompleteDay.addEventListener('click', completeCurrentDay);
+  btnUndoDay.addEventListener('click', undoCompleteCurrentDay);
   modalClose.addEventListener('click', closeModal);
   modalCancel.addEventListener('click', closeModal);
   exerciseForm.addEventListener('submit', handleFormSubmit);
