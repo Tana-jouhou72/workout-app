@@ -192,9 +192,15 @@ function renderTimeline() {
     card.appendChild(labelSpan);
 
     if (!isRest) {
-      const dot = document.createElement('div');
-      dot.className = 'badge-indicator';
-      card.appendChild(dot);
+      const dateStr = getDateOfDayOfCurrentWeek(dayKey);
+      const totalSets = dayData.exercises.reduce((sum, ex) => sum + ex.sets, 0);
+      const doneSets = completedSets[dateStr] ? Object.keys(completedSets[dateStr]).length : 0;
+      const pct = totalSets > 0 ? Math.min(100, Math.round((doneSets / totalSets) * 100)) : 0;
+      const progressBar = document.createElement('div');
+      progressBar.className = 'day-progress-bar';
+      progressBar.style.width = pct + '%';
+      card.appendChild(progressBar);
+      if (pct === 100) card.classList.add('day-complete');
     }
 
     card.addEventListener('click', () => {
@@ -265,6 +271,8 @@ function renderExercises(exercises) {
     const card = document.createElement('div');
     card.className = 'exercise-card';
     card.dataset.index = exIndex;
+    const catColorMap = { chest:'#ff4757', back:'#2ed573', shoulder:'#ffa502', bicep:'#1e90ff', tricep:'#9b59b6', legs:'#ff6b81', abs:'#1abc9c', cardio:'#7f8c8d' };
+    card.style.setProperty('--cat-color', catColorMap[ex.category] || '#ff5e3a');
 
     const info = document.createElement('div');
     info.className = 'exercise-info';
@@ -330,6 +338,11 @@ function renderExercises(exercises) {
     card.appendChild(setsGrid);
     card.appendChild(actions);
 
+    const allDone = ex.sets > 0 && Array.from({length: ex.sets}, (_, i) =>
+      completedSets[dateStr]?.[`${ex.name}-${i + 1}`]
+    ).every(Boolean);
+    if (allDone) card.classList.add('all-done');
+
     exercisesList.appendChild(card);
   });
 }
@@ -344,8 +357,9 @@ function toggleSet(dateStr, setKey, bubble) {
   
   if (isCompleted) {
     completedSets[dateStr][setKey] = true;
-    bubble.classList.add('completed');
-    startTimer(120); // 120s rest timer
+    bubble.classList.add('completed', 'completing');
+    setTimeout(() => bubble.classList.remove('completing'), 400);
+    startTimer(120);
   } else {
     delete completedSets[dateStr][setKey];
     if (Object.keys(completedSets[dateStr]).length === 0) {
@@ -363,6 +377,22 @@ function updateStats() {
   const dateStr = getDateOfDayOfCurrentWeek(currentDay);
   const completedCount = completedSets[dateStr] ? Object.keys(completedSets[dateStr]).length : 0;
   statsCompleted.textContent = completedCount;
+  updateAllProgressBars();
+}
+
+function updateAllProgressBars() {
+  Object.keys(DEFAULT_ROUTINE).forEach(dayKey => {
+    const card = document.querySelector(`.day-card[data-day="${dayKey}"]`);
+    const bar = card?.querySelector('.day-progress-bar');
+    if (!bar) return;
+    const totalSets = routine[dayKey].exercises.reduce((sum, ex) => sum + ex.sets, 0);
+    if (totalSets === 0) return;
+    const dateStr = getDateOfDayOfCurrentWeek(dayKey);
+    const done = completedSets[dateStr] ? Object.keys(completedSets[dateStr]).length : 0;
+    const pct = Math.min(100, Math.round((done / totalSets) * 100));
+    bar.style.width = pct + '%';
+    card.classList.toggle('day-complete', pct === 100);
+  });
 }
 
 // Reset day's progress
