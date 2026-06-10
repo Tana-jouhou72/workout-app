@@ -70,6 +70,13 @@ const DAYS_ABBR = {
   Sun: "SUN"
 };
 
+// Inline SVG icons (Lucide-style) — no emojis as UI icons
+const ICONS = {
+  edit: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
+  trash: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+  moon: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>'
+};
+
 // State Management
 let currentDay = getTodayAbbr();
 let routine = JSON.parse(localStorage.getItem('flexflow_routine')) || DEFAULT_ROUTINE;
@@ -80,6 +87,7 @@ let completedSets = JSON.parse(localStorage.getItem('flexflow_completed_sets')) 
 let timerInterval = null;
 let timerSecondsTotal = 120;
 let timerSecondsRemaining = 0;
+let timerPaused = false;
 
 // Calendar View State
 let calendarDate = new Date();
@@ -91,6 +99,7 @@ const activeDaySubtitle = document.getElementById('active-day-subtitle');
 const volumeBreakdown = document.getElementById('volume-breakdown');
 const exercisesList = document.getElementById('exercises-list');
 const statsCompleted = document.getElementById('stats-completed');
+const statsStreak = document.getElementById('stats-streak');
 const btnResetDay = document.getElementById('btn-reset-day');
 const btnAddExercise = document.getElementById('btn-add-exercise');
 const btnCompleteDay = document.getElementById('btn-complete-day');
@@ -116,6 +125,7 @@ const timerProgress = document.getElementById('timer-progress');
 const timerSub10 = document.getElementById('timer-sub-10');
 const timerAdd10 = document.getElementById('timer-add-10');
 const timerSkip = document.getElementById('timer-skip');
+const timerPauseBtn = document.getElementById('timer-pause');
 const timerChime = document.getElementById('timer-chime');
 
 // Modal DOM Elements
@@ -257,7 +267,7 @@ function renderExercises(exercises) {
   if (exercises.length === 0) {
     exercisesList.innerHTML = `
       <div class="rest-state">
-        <span class="rest-icon">☕</span>
+        <span class="rest-icon">${ICONS.moon}</span>
         <h3>Rest and Recover</h3>
         <p>No workouts scheduled for today. Allow your muscles to repair and grow!</p>
       </div>
@@ -309,7 +319,9 @@ function renderExercises(exercises) {
       const bubble = document.createElement('button');
       bubble.className = `set-bubble ${isCompleted ? 'completed' : ''}`;
       bubble.textContent = setNum;
-      
+      bubble.setAttribute('aria-label', `${ex.name} set ${setNum} of ${ex.sets}`);
+      bubble.setAttribute('aria-pressed', isCompleted ? 'true' : 'false');
+
       bubble.addEventListener('click', () => {
         toggleSet(dateStr, setKey, bubble);
       });
@@ -321,14 +333,16 @@ function renderExercises(exercises) {
 
     const btnEdit = document.createElement('button');
     btnEdit.className = 'btn-edit-icon';
-    btnEdit.innerHTML = '✏️';
+    btnEdit.innerHTML = ICONS.edit;
     btnEdit.title = 'Edit Exercise';
+    btnEdit.setAttribute('aria-label', `Edit ${ex.name}`);
     btnEdit.addEventListener('click', () => openModal(exIndex));
 
     const btnDelete = document.createElement('button');
     btnDelete.className = 'btn-danger-icon';
-    btnDelete.innerHTML = '🗑️';
+    btnDelete.innerHTML = ICONS.trash;
     btnDelete.title = 'Delete Exercise';
+    btnDelete.setAttribute('aria-label', `Delete ${ex.name}`);
     btnDelete.addEventListener('click', () => deleteExercise(exIndex));
 
     actions.appendChild(btnEdit);
@@ -367,6 +381,7 @@ function toggleSet(dateStr, setKey, bubble) {
     }
     bubble.classList.remove('completed');
   }
+  bubble.setAttribute('aria-pressed', isCompleted ? 'true' : 'false');
 
   localStorage.setItem('flexflow_completed_sets', JSON.stringify(completedSets));
   updateStats();
@@ -377,7 +392,41 @@ function updateStats() {
   const dateStr = getDateOfDayOfCurrentWeek(currentDay);
   const completedCount = completedSets[dateStr] ? Object.keys(completedSets[dateStr]).length : 0;
   statsCompleted.textContent = completedCount;
+  statsStreak.textContent = calculateStreak();
   updateAllProgressBars();
+}
+
+// Consecutive workout-day streak; scheduled rest days don't break it
+function calculateStreak() {
+  const dayOrder = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const hasWork = ds => completedSets[ds] && Object.keys(completedSets[ds]).length > 0;
+
+  let streak = 0;
+  const d = new Date();
+  // An unfinished today shouldn't break the streak
+  if (!hasWork(getTodayDateString(d))) d.setDate(d.getDate() - 1);
+
+  for (let guard = 0; guard < 3650; guard++) {
+    const ds = getTodayDateString(d);
+    const isRestDay = routine[dayOrder[d.getDay()]].exercises.length === 0;
+    if (hasWork(ds)) streak++;
+    else if (!isRestDay) break;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+// Toast notifications
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('leaving');
+    setTimeout(() => toast.remove(), 300);
+  }, 2400);
 }
 
 function updateAllProgressBars() {
@@ -404,6 +453,7 @@ function resetDayProgress() {
     loadDay(currentDay);
     updateStats();
     stopTimer();
+    showToast(`${routine[currentDay].name} progress reset`);
   }
 }
 
@@ -426,6 +476,7 @@ function completeCurrentDay() {
   
   localStorage.setItem('flexflow_completed_sets', JSON.stringify(completedSets));
   loadDay(currentDay);
+  showToast(`${dayData.name} complete — great work!`, 'success');
 }
 
 // Undo completing the current day
@@ -448,6 +499,7 @@ function undoCompleteCurrentDay() {
     
     localStorage.setItem('flexflow_completed_sets', JSON.stringify(completedSets));
     loadDay(currentDay);
+    showToast(`${dayData.name} completion undone`);
   }
 }
 
@@ -456,11 +508,14 @@ function startTimer(duration) {
   stopTimer();
   timerSecondsTotal = duration;
   timerSecondsRemaining = duration;
-  
+  timerPaused = false;
+  timerPauseBtn.textContent = 'Pause';
+
   timerWidget.classList.remove('hidden');
   updateTimerDisplay();
 
   timerInterval = setInterval(() => {
+    if (timerPaused) return;
     timerSecondsRemaining--;
     if (timerSecondsRemaining <= 0) {
       playTimerNotification();
@@ -476,11 +531,26 @@ function stopTimer() {
     clearInterval(timerInterval);
     timerInterval = null;
   }
+  timerPaused = false;
+  timerPauseBtn.textContent = 'Pause';
   timerWidget.classList.add('hidden');
 }
 
+function togglePauseTimer() {
+  if (!timerInterval) return;
+  timerPaused = !timerPaused;
+  timerPauseBtn.textContent = timerPaused ? 'Resume' : 'Pause';
+  timerWidget.classList.toggle('paused', timerPaused);
+}
+
+function formatTimerTime(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 function updateTimerDisplay() {
-  timerDisplay.textContent = timerSecondsRemaining;
+  timerDisplay.textContent = formatTimerTime(timerSecondsRemaining);
   const ringCircumference = 213.6;
   const offset = ringCircumference - (ringCircumference * timerSecondsRemaining) / timerSecondsTotal;
   timerProgress.style.strokeDashoffset = offset;
@@ -505,7 +575,9 @@ function renderCalendar() {
   
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   currentMonthYear.textContent = `${monthNames[month]} ${year}`;
-  
+
+  renderMonthStats(year, month);
+
   calendarDays.innerHTML = '';
   
   const firstDayIndex = new Date(year, month, 1).getDay();
@@ -548,6 +620,34 @@ function renderCalendar() {
   }
 }
 
+// Summary chips above the calendar for the displayed month
+function renderMonthStats(year, month) {
+  const monthStats = document.getElementById('month-stats');
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+
+  let workoutDays = 0;
+  let totalSets = 0;
+  Object.keys(completedSets).forEach(dateStr => {
+    if (!dateStr.startsWith(monthPrefix)) return;
+    const setCount = Object.keys(completedSets[dateStr]).length;
+    if (setCount > 0) {
+      workoutDays++;
+      totalSets += setCount;
+    }
+  });
+
+  monthStats.innerHTML = `
+    <div class="month-stat-chip">
+      <span class="month-stat-value">${workoutDays}</span>
+      <span class="month-stat-label">Workout Days</span>
+    </div>
+    <div class="month-stat-chip">
+      <span class="month-stat-value">${totalSets}</span>
+      <span class="month-stat-label">Sets Completed</span>
+    </div>
+  `;
+}
+
 // Render history detail pane on day click
 function selectHistoryDay(dateStr, hasWorkouts) {
   const detailsDate = document.getElementById('history-details-date');
@@ -560,23 +660,24 @@ function selectHistoryDay(dateStr, hasWorkouts) {
   
   if (!hasWorkouts) {
     detailsContent.innerHTML = `
-      <p class="text-muted">No workout data recorded for this date. ☕ Rest day!</p>
+      <p class="text-muted">No workout data recorded for this date. Rest day!</p>
     `;
     return;
   }
-  
+
   const dayCompletions = completedSets[dateStr];
   detailsContent.innerHTML = '';
-  
+
   const list = document.createElement('div');
   list.className = 'history-exercise-list';
-  
+
   const groupedCompletions = {};
   Object.keys(dayCompletions).forEach(key => {
-    const parts = key.split('-');
-    const exName = parts[0];
-    const setNum = parts[1];
-    
+    // Split on the LAST dash so exercise names containing dashes parse correctly
+    const sepIndex = key.lastIndexOf('-');
+    const exName = key.slice(0, sepIndex);
+    const setNum = key.slice(sepIndex + 1);
+
     if (!groupedCompletions[exName]) {
       groupedCompletions[exName] = [];
     }
@@ -644,8 +745,10 @@ function handleFormSubmit(e) {
 
   if (index === '') {
     routine[currentDay].exercises.push(newEx);
+    showToast(`${newEx.name} added`, 'success');
   } else {
     routine[currentDay].exercises[index] = newEx;
+    showToast(`${newEx.name} updated`, 'success');
   }
 
   saveRoutine();
@@ -654,10 +757,12 @@ function handleFormSubmit(e) {
 }
 
 function deleteExercise(index) {
-  if (confirm(`Are you sure you want to delete ${routine[currentDay].exercises[index].name}?`)) {
+  const exName = routine[currentDay].exercises[index].name;
+  if (confirm(`Are you sure you want to delete ${exName}?`)) {
     routine[currentDay].exercises.splice(index, 1);
     saveRoutine();
     loadDay(currentDay);
+    showToast(`${exName} deleted`);
   }
 }
 
@@ -706,6 +811,7 @@ function setupEventListeners() {
 
   // Timer Widget Controls
   timerSkip.addEventListener('click', stopTimer);
+  timerPauseBtn.addEventListener('click', togglePauseTimer);
   timerSub10.addEventListener('click', () => {
     timerSecondsRemaining = Math.max(0, timerSecondsRemaining - 10);
     if (timerSecondsRemaining === 0) stopTimer();
@@ -719,6 +825,13 @@ function setupEventListeners() {
 
   exerciseModal.addEventListener('click', (e) => {
     if (e.target === exerciseModal) closeModal();
+  });
+
+  // Escape closes the modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !exerciseModal.classList.contains('hidden')) {
+      closeModal();
+    }
   });
 }
 

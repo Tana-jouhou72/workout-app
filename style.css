@@ -78,8 +78,25 @@ body {
 }
 
 .logo-icon {
-  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  color: var(--accent-color);
   filter: drop-shadow(0 0 10px var(--accent-gradient-start));
+}
+
+/* Visible keyboard focus on all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .logo-area h1 {
@@ -124,6 +141,15 @@ body {
   letter-spacing: 0.08em;
   font-weight: 600;
   margin-top: 2px;
+}
+
+.stat-box.streak-box {
+  background: rgba(255, 165, 2, 0.08);
+  border-color: rgba(255, 165, 2, 0.2);
+}
+
+.stat-box.streak-box .stat-value {
+  color: var(--cat-shoulder);
 }
 
 /* Weekly Timeline */
@@ -316,7 +342,7 @@ body {
 }
 
 .rest-icon {
-  font-size: 3.5rem;
+  color: var(--text-muted);
   animation: float 4s ease-in-out infinite;
 }
 
@@ -429,8 +455,8 @@ body {
 }
 
 .set-bubble {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.03);
@@ -529,15 +555,18 @@ body {
 .btn-danger-icon, .btn-edit-icon {
   background: transparent;
   border: none;
-  font-size: 1rem;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
-  padding: 5px 7px;
+  padding: 7px 9px;
   border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.btn-danger-icon:hover { background: rgba(255, 71, 87, 0.12); }
-.btn-edit-icon:hover { background: rgba(30, 144, 255, 0.12); }
+.btn-danger-icon:hover { background: rgba(255, 71, 87, 0.12); color: var(--cat-chest); }
+.btn-edit-icon:hover { background: rgba(30, 144, 255, 0.12); color: var(--cat-bicep); }
 
 /* Floating Timer Widget */
 .floating-timer {
@@ -586,15 +615,19 @@ body {
 
 .timer-text {
   position: absolute;
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
+.floating-timer.paused .timer-ring-progress {
+  opacity: 0.4;
+}
+
 .timer-controls {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 
@@ -828,6 +861,38 @@ select option {
   font-size: 1.1rem;
 }
 
+/* Month summary chips */
+.month-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.month-stat-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+}
+
+.month-stat-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--accent-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.month-stat-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
 /* Calendar Layout */
 .history-content-layout {
   display: grid;
@@ -974,9 +1039,57 @@ select option {
   border-radius: 5px;
 }
 
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(13, 20, 36, 0.95);
+  border: 1px solid var(--border-color);
+  backdrop-filter: var(--glass-blur);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 50px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: toast-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast.toast-success {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.12);
+}
+
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   body { padding: 12px 8px; }
+
+  .app-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 
   .timeline-grid {
     grid-template-columns: repeat(4, 1fr);
